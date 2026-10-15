@@ -14,6 +14,7 @@ Shows the PRs created in the current session, with their CI status, in a band ab
 - CI status comes from `gh pr view --json` and refreshes every 60 seconds; `[ Refresh ]` fetches at once.
 - `/prs` also toggles the panel.
 - The list and the panel state are stored under the session id, so they survive a `/tui` relaunch.
+- Each open PR's card has a `[ Squash & merge ]` button. It asks "Squash and merge #N?" first; `Yes` runs `gh pr merge <url> --squash`, after `gh pr ready` when the PR is still a draft (the question then says "marks it ready first"). Success toasts and refreshes the list; failure shows the first line of gh's error on the card and brings the button back.
 
 ### review-requests
 
@@ -29,7 +30,7 @@ With both mods installed the band has two rows: each mod draws its own row and s
 
 ## Notes
 
-- Mouse clicks reach the buttons only under the fullscreen renderer. Switch with `/tui fullscreen` (`/tui default` switches back). On the classic renderer use `/prs` and `/reviews`, or focus the band with `ctrl+x tab`: `p` toggles the PR panel, `v` the review panel; inside a panel `r` refreshes and `q` closes it.
+- Mouse clicks reach the buttons only under the fullscreen renderer. Switch with `/tui fullscreen` (`/tui default` switches back). On the classic renderer use `/prs` and `/reviews`, or focus the band with `ctrl+x tab`: `p` toggles the PR panel, `v` the review panel; inside a panel `r` refreshes and `q` closes it; in the PR panel `m` is the merge button of the first open PR, and `y` / `n` answer its question.
 - `gh` must be installed and signed in.
 - The refresh interval of each mod is the `REFRESH_MS` constant at the top of its `hooks/register.tsx`.
 

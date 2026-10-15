@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Bucket, CheckRun, Checks, Pr } from '../types'
+import type { Bucket, CheckRun, Checks, Merge, Pr } from '../types'
 
 const PANE = 'session-prs'
 const REFRESH_MS = 60_000
@@ -11,6 +11,7 @@ const FIELDS = 'number,title,state,isDraft,headRefName,baseRefName,additions,del
 
 const prs = atom({ plugin: 'session-prs', key: 'prs' } as const, [])
 const isOpen = atom({ plugin: 'session-prs', key: 'isOpen' } as const, false)
+const merge = atom({ plugin: 'session-prs', key: 'merge' } as const, null as Merge | null)
 
 type Rollup =
   | { __typename: 'CheckRun'; name: string; status: string; conclusion: string | null }
@@ -132,6 +133,41 @@ const addPrs = async ($: EngineInterface, urls: string[]) => {
     return [...current, ...added]
   })
   if (added.length > 0) await refreshAll($)
+}
+
+const askMerge = async ($: EngineInterface, url: string) => {
+  await update($, merge, () => ({ url, phase: 'confirm', message: '' }))
+}
+
+const cancelMerge = async ($: EngineInterface) => {
+  await update($, merge, () => null)
+}
+
+const gh = async ($: EngineInterface, argv: string[]): Promise<string | null> => {
+  try {
+    const ran = await $.process.run(['gh', ...argv], { timeoutMs: 60_000 })
+    if (ran.exitCode === 0) return null
+    return ran.stderr.trim().split('\n')[0] || `gh exited ${ran.exitCode}`
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error)
+  }
+}
+
+// A draft cannot be merged, so it is marked ready first; then squash-merged.
+const runMerge = async ($: EngineInterface) => {
+  const asked = await read($, merge)
+  if (asked === null || asked.phase !== 'confirm') return
+  const pr = (await read($, prs)).find(one => one.url === asked.url)
+  if (pr === undefined) return cancelMerge($)
+  await update($, merge, () => ({ ...asked, phase: 'running' }))
+  const failed = (pr.isDraft ? await gh($, ['pr', 'ready', pr.url]) : null) ?? (await gh($, ['pr', 'merge', pr.url, '--squash']))
+  if (failed !== null) {
+    await update($, merge, () => ({ ...asked, phase: 'failed', message: failed }))
+    return
+  }
+  await update($, merge, () => null)
+  void $.ui.toast(`#${pr.number} squash-merged`)
+  await refreshAll($)
 }
 
 const openPane = async ($: EngineInterface) => {
@@ -300,9 +336,11 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Button, Link, Text } = $.ui.resolve(e)
     const list = await read($, prs)
+    const asked = await read($, merge)
     const now = await $.clock.now()
     const total = totalOf(list)
     const width = Math.max(30, e.props.bodyColumns)
+    const firstOpen = list.find(pr => pr.state === 'OPEN')
     const inner = width - 4
     const byState = { open: 0, merged: 0, closed: 0 }
     for (const pr of list) {
@@ -357,7 +395,8 @@ export const register: Register = on => {
         {list.map(pr => {
           const tone = toneOf(pr)
           const review = reviewOf(pr.reviewDecision)
-          const merge = mergeOf(pr.mergeStateStatus)
+          const mergeable = mergeOf(pr.mergeStateStatus)
+          const mine = asked?.url === pr.url ? asked : null
           const shown = pr.runs.slice(0, 8)
           return (
             <Box key={pr.url} flexDirection="column" borderStyle="round" borderColor={tone.color} paddingX={1} width={width}>
@@ -398,10 +437,24 @@ export const register: Register = on => {
                 <Box gap={1}>
                   <Text color={review.color}>{review.label}</Text>
                   <Text dimColor>·</Text>
-                  <Text color={merge.color}>{merge.label}</Text>
+                  <Text color={mergeable.color}>{mergeable.label}</Text>
                 </Box>
                 <Text dimColor>{ageOf(now, pr.updatedAt)}</Text>
               </Box>
+              {pr.state === 'OPEN' && mine?.phase === 'confirm' && (
+                <Box gap={1}>
+                  <Text color="warning">Squash and merge #{pr.number}{pr.isDraft ? ' (marks it ready first)' : ''}?</Text>
+                  <Button key={`merge-yes:${pr.url}`} hotkey="y" variant="primary" label="Yes" onPress={() => runMerge($)} />
+                  <Button key={`merge-no:${pr.url}`} hotkey="n" label="No" onPress={() => cancelMerge($)} />
+                </Box>
+              )}
+              {pr.state === 'OPEN' && mine?.phase === 'running' && <Text color="warning">merging…</Text>}
+              {pr.state === 'OPEN' && mine?.phase !== 'confirm' && mine?.phase !== 'running' && (
+                <Box gap={1}>
+                  <Button key={`merge:${pr.url}`} hotkey={pr === firstOpen ? 'm' : undefined} label="Squash & merge" onPress={() => askMerge($, pr.url)} />
+                  {mine?.phase === 'failed' && <Text color="error" wrap="truncate">merge failed: {mine.message}</Text>}
+                </Box>
+              )}
               <Link href={pr.url} label={pr.url.replace('https://github.com/', '')} />
             </Box>
           )
