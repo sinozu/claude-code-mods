@@ -405,7 +405,8 @@ export const register: Register = on => {
           const review = reviewOf(pr.reviewDecision)
           const mergeable = mergeOf(pr.mergeStateStatus)
           const mine = asked?.url === pr.url ? asked : null
-          const shown = pr.runs.slice(0, 8)
+          const failed = pr.runs.filter(run => run.bucket === 'fail')
+          const shown = failed.slice(0, 8)
           return (
             <Box key={pr.url} flexDirection="column" borderStyle="round" borderColor={tone.color} paddingX={1} width={width}>
               <Box justifyContent="space-between">
@@ -429,7 +430,6 @@ export const register: Register = on => {
                 </Box>
               )}
               <Text dimColor>{'─'.repeat(inner)}</Text>
-              {shown.length === 0 && pr.error === null && <Text dimColor>no checks on this PR</Text>}
               {shown.length > 0 && (
                 <Box flexWrap="wrap" columnGap={2}>
                   {shown.map(run => (
@@ -437,7 +437,7 @@ export const register: Register = on => {
                       {BUCKET[run.bucket].glyph} {run.name}
                     </Text>
                   ))}
-                  {pr.runs.length > shown.length && <Text dimColor>+{pr.runs.length - shown.length} more</Text>}
+                  {failed.length > shown.length && <Text dimColor>+{failed.length - shown.length} more</Text>}
                 </Box>
               )}
               {pr.error !== null && <Text color="warning" wrap="truncate">gh: {pr.error}</Text>}

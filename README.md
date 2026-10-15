@@ -9,7 +9,7 @@ Claude Code の mod（hooks module plugin）置き場。
 セッション中に `gh pr create` や `gh stack submit` で作った PR の一覧と CI 状況を、プロンプト直上の帯とサイドバー（Pane）に表示する。
 
 - 帯は常に 1 行。`▌ PRs [n] │ ✓ 成功 ✗ 失敗 ◌ 実行中 │ [ Panel ○ ]`。ボタンでサイドバーの on / off を切り替える
-- サイドバーは PR ごとのカード。状態チップ（OPEN / MERGED / CLOSED / DRAFT）、`+追加 −削除`、ブランチ → base、チェックごとの結果、レビュー判定、マージ可否、PR へのリンク、最終取得からの経過時間。上部に全体の比率バー
+- サイドバーは PR ごとのカード。状態チップ（OPEN / MERGED / CLOSED / DRAFT）、`+追加 −削除`、ブランチ → base、失敗したチェック名（成功・実行中・スキップは出さない）、レビュー判定、マージ可否、PR へのリンク、最終取得からの経過時間。上部に全体の比率バー
 - CI 状況は `gh pr view --json` で 60 秒ごとに更新。サイドバーの `[ Refresh ]` で即時更新
 - `/prs` でもサイドバーを開閉できる
 - `gh stack submit` の出力からは `Created PR #N (URL)` の行だけを拾う。stack 内の既存 PR（`is up to date`）や stack 番号は登録しない
