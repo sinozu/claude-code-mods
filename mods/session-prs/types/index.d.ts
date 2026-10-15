@@ -22,8 +22,13 @@ export type Pr = {
   error: string | null
 }
 
+export type MergePhase = 'confirm' | 'running' | 'failed'
+
+// The one squash merge in flight: asked, running, or failed with gh's first stderr line.
+export type Merge = { url: string; phase: MergePhase; message: string }
+
 declare module 'claude-code' {
   interface PluginState {
-    'session-prs': { prs: Pr[]; isOpen: boolean }
+    'session-prs': { prs: Pr[]; isOpen: boolean; merge: Merge | null }
   }
 }

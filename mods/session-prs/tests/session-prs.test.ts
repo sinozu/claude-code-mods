@@ -152,3 +152,64 @@ test('/prs opens the pane, then closes it', async ($, on) => {
   expect((await run()).text).toContain('closed')
   expect(closed).toEqual(['session-prs'])
 })
+
+test('the merge button asks first, then marks a draft ready and squash-merges it', async ($, on) => {
+  engine(on)
+  const ran: string[][] = []
+  const toasts: string[] = []
+  let merged = false
+  on('tool.call', { tool: 'Bash' }, () => ({ result: { stdout: `${PR}\n`, stderr: '' }, text: `${PR}\n` }))
+  on('process.run', (_, e) => {
+    ran.push([...e.argv])
+    if (e.argv[2] === 'merge') merged = true
+    return ok(view(merged ? { state: 'MERGED', isDraft: false } : {}))
+  })
+  on('ui.toast', (_, e) => {
+    toasts.push(e.text)
+    return { value: undefined }
+  })
+  await $.tool.call({ tool: 'Bash', command: 'gh pr create --title x' })
+
+  const pane = await $.ui.mount({ plugin: 'session-prs', surface: 'terminal', component: 'Pane', props: paneProps, requestId: 'session-prs' })
+  expect(await pane.find({ key: `merge:${PR}` })).toMatchObject({ text: 'Squash & merge' })
+  expect(await pane.find({ key: `merge-yes:${PR}` })).toBeUndefined()
+
+  await pane.press({ key: `merge:${PR}` })
+  expect(await pane.find({ text: /Squash and merge #12 \(marks it ready first\)\?/ })).toBeDefined()
+  expect(ran.some(argv => argv[2] === 'merge')).toBe(false)
+
+  await pane.press({ key: `merge-no:${PR}` })
+  expect(await pane.find({ key: `merge-yes:${PR}` })).toBeUndefined()
+  expect(ran.some(argv => argv[2] === 'merge')).toBe(false)
+
+  await pane.press({ key: `merge:${PR}` })
+  await pane.press({ key: `merge-yes:${PR}` })
+  expect(ran).toContainEqual(['gh', 'pr', 'ready', PR])
+  expect(ran).toContainEqual(['gh', 'pr', 'merge', PR, '--squash'])
+  expect(ran.findIndex(argv => argv[2] === 'ready')).toBeLessThan(ran.findIndex(argv => argv[2] === 'merge'))
+  expect(toasts).toEqual(['#12 squash-merged'])
+  expect(await pane.find({ text: /MERGED/ })).toBeDefined()
+  expect(await pane.find({ key: `merge:${PR}` })).toBeUndefined()
+})
+
+test('a failed merge shows gh\'s message and offers the button again', async ($, on) => {
+  engine(on)
+  const ran: string[][] = []
+  on('tool.call', { tool: 'Bash' }, () => ({ result: { stdout: `${PR}\n`, stderr: '' }, text: `${PR}\n` }))
+  on('process.run', (_, e) => {
+    ran.push([...e.argv])
+    if (e.argv[2] === 'merge') {
+      return { value: { exitCode: 1, stdout: '', stderr: 'X Pull request #12 is not mergeable: the base branch policy prohibits the merge.\n', isStdoutTruncated: false, isStderrTruncated: false } }
+    }
+    return ok(view({ isDraft: false }))
+  })
+  await $.tool.call({ tool: 'Bash', command: 'gh pr create --title x' })
+
+  const pane = await $.ui.mount({ plugin: 'session-prs', surface: 'terminal', component: 'Pane', props: paneProps, requestId: 'session-prs' })
+  await pane.press({ key: `merge:${PR}` })
+  expect(await pane.find({ text: /Squash and merge #12\?/ })).toBeDefined()
+  await pane.press({ key: `merge-yes:${PR}` })
+  expect(ran.some(argv => argv[2] === 'ready')).toBe(false)
+  expect(await pane.find({ text: /merge failed: X Pull request #12 is not mergeable/ })).toBeDefined()
+  expect(await pane.find({ key: `merge:${PR}` })).toBeDefined()
+})
