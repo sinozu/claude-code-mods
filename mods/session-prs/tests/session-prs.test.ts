@@ -88,6 +88,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     const pane = await $.ui.mount({ plugin: 'session-prs', surface, component: 'Pane', props: paneProps, requestId: 'session-prs' })
     expect(await pane.find({ text: /#12/ })).toBeDefined()
     expect(await pane.find({ text: /DRAFT/ })).toBeDefined()
+    expect(await pane.find({ text: /\bOPEN\b/ })).toBeUndefined()
     expect(await pane.find({ type: 'Text', text: /✗ coverage/ })).toBeDefined()
     expect(await pane.find({ type: 'Text', text: /◌ test/ })).toBeUndefined()
     expect(await pane.find({ type: 'Text', text: /✓ lint/ })).toBeUndefined()
