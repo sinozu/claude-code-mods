@@ -415,8 +415,11 @@ export const register: Register = on => {
                 <Box gap={1}>
                   <Text color={tone.color} bold>{tone.glyph}</Text>
                   <Text bold>#{pr.number}</Text>
-                  <Text inverse color={stateColor(pr.state)}> {pr.state} </Text>
-                  {pr.isDraft && <Text inverse color="subtle"> DRAFT </Text>}
+                  {pr.isDraft && pr.state === 'OPEN' ? (
+                    <Text inverse color="subtle"> DRAFT </Text>
+                  ) : (
+                    <Text inverse color={stateColor(pr.state)}> {pr.state} </Text>
+                  )}
                 </Box>
                 <Box gap={1}>
                   <Text color="diffAdded">+{pr.additions}</Text>
