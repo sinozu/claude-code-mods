@@ -1,55 +1,56 @@
 # claude-code-mods
 
-Claude Code の mod（hooks module plugin）置き場。
+Mods for Claude Code: hooks-module plugins that add live panels and controls to the terminal UI.
 
 ## Mods
 
 ### session-prs
 
-セッション中に `gh pr create` で作った PR の一覧と CI 状況を、プロンプト直上の帯とサイドバー（Pane）に表示する。
+Shows the PRs created in the current session, with their CI status, in a band above the prompt and in a side panel.
 
-- 帯は常に 1 行。`▌ PRs [n] │ ✓ 成功 ✗ 失敗 ◌ 実行中 │ [ Panel ○ ]`。ボタンでサイドバーの on / off を切り替える
-- サイドバーは PR ごとのカード。状態チップ（OPEN / MERGED / CLOSED / DRAFT）、`+追加 −削除`、ブランチ → base、チェックごとの結果、レビュー判定、マージ可否、PR へのリンク、最終取得からの経過時間。上部に全体の比率バー
-- CI 状況は `gh pr view --json` で 60 秒ごとに更新。サイドバーの `[ Refresh ]` で即時更新
-- `/prs` でもサイドバーを開閉できる
-- 一覧と開閉状態はセッション ID をキーに保存するので、`/tui` での再起動後も残る
-- open な PR のカードには `[ Squash & merge ]` ボタンがある。押すと「Squash and merge #N?」と確認を出し、`Yes` で `gh pr merge <url> --squash` を実行する。draft なら先に `gh pr ready` を打つ（確認文に「marks it ready first」と出る）。成功すると toast を出して一覧を再取得、失敗すると gh のエラー先頭行をカードに出してボタンを戻す
-
-注意:
-
-- 通常表示（`/tui default`）ではターミナルがマウスを Claude Code に渡さないため、ボタンはクリックできない。`/tui fullscreen` にするか、`/prs` を使う。帯にフォーカス（ctrl+x tab）したときは `p`、サイドバーでは `r` が更新、`q` が閉じる、`m` が先頭の open な PR の merge ボタン、確認中は `y` / `n`
-- `gh` が認証済みであること
+- The band is a single row: `▌ PRs [n] │ ✓ passed ✗ failed ◌ running │ [ Panel ○ ]`. The button toggles the panel on and off.
+- The panel draws one card per PR: state chips (OPEN / MERGED / CLOSED / DRAFT), `+added −deleted`, branch → base, every check with its result, review decision, merge state, a link to the PR, and the time since the last fetch. A proportional bar at the top sums up all checks.
+- A PR is picked up from the output of any `gh pr create` the session runs through the Bash tool, including those run by subagents.
+- CI status comes from `gh pr view --json` and refreshes every 60 seconds; `[ Refresh ]` fetches at once.
+- `/prs` also toggles the panel.
+- The list and the panel state are stored under the session id, so they survive a `/tui` relaunch.
+- Each open PR's card has a `[ Squash & merge ]` button. It asks "Squash and merge #N?" first; `Yes` runs `gh pr merge <url> --squash`, after `gh pr ready` when the PR is still a draft (the question then says "marks it ready first"). Success toasts and refreshes the list; failure shows the first line of gh's error on the card and brings the button back.
 
 ### review-requests
 
-自分がレビュアーに指定されている open な PR の一覧と CI 状況を、帯とサイドバーに表示する。
+Shows the open PRs where you are a requested reviewer, with their CI status, in a band and a side panel.
 
-- `gh search prs --review-requested=@me --state=open` で最大 30 件取り、各 PR の CI・差分量・レビュー状態を `gh pr view` で補う
-- 自分が approve 済み、または PR 全体が approve 済みのものは出さない
-- 帯は 1 行。`▌ Reviews [n] │ ✗ k with failing CI │ [ Panel ○ ]`。失敗 CI が無ければ `CI green on all`
-- サイドバーは PR ごとのカード。`repo #番号`、DRAFT チップ、`+追加 −削除`、タイトル、`@作者`、レビュー状態、更新からの経過、チェック内訳と失敗したチェック名、リンク。更新が新しい順
-- 起動時と 5 分ごとに自動更新。`[ Refresh ]` で即時更新。`/reviews` でサイドバーを開閉
-- 帯にフォーカスしたときは `v` で開閉、サイドバーでは `r` が更新、`q` が閉じる
+- Fetches up to 30 PRs with `gh search prs --review-requested=@me --state=open`, then adds CI, diff size and review state from `gh pr view`.
+- Hides PRs you have already approved, and PRs approved as a whole.
+- The band is a single row: `▌ Reviews [n] │ ✗ k with failing CI │ [ Panel ○ ]`, or `CI green on all` when nothing fails.
+- The panel draws one card per PR: `repo #number`, a DRAFT chip, `+added −deleted`, title, `@author`, review state, time since the last update, the check counts with the names of failing checks, and a link. Newest update first.
+- Refreshes at start and every 5 minutes; `[ Refresh ]` fetches at once. `/reviews` toggles the panel.
 
-session-prs と同時に入れると、帯は 2 段になる（各 mod が自分の行を描き、下の mod の行を重ねる）。
+With both mods installed the band has two rows: each mod draws its own row and stacks the row of the mod beneath it.
+
+## Notes
+
+- Mouse clicks reach the buttons only under the fullscreen renderer. Switch with `/tui fullscreen` (`/tui default` switches back). On the classic renderer use `/prs` and `/reviews`, or focus the band with `ctrl+x tab`: `p` toggles the PR panel, `v` the review panel; inside a panel `r` refreshes and `q` closes it; in the PR panel `m` is the merge button of the first open PR, and `y` / `n` answer its question.
+- `gh` must be installed and signed in.
+- The refresh interval of each mod is the `REFRESH_MS` constant at the top of its `hooks/register.tsx`.
 
 ## Install
 
-ターミナルのセッションのプロンプトで:
+At the prompt of a terminal session:
 
 ```
 /plugin install session-prs --marketplace sinozu/claude-code-mods
 /plugin install review-requests --marketplace sinozu/claude-code-mods
 ```
 
-シェルから:
+From a shell:
 
 ```
 claude plugin install session-prs --marketplace sinozu/claude-code-mods
 claude plugin install review-requests --marketplace sinozu/claude-code-mods
 ```
 
-デスクトップアプリでは、プロンプト横の + から Plugins → Add marketplace に `sinozu/claude-code-mods` を入れ、Add plugin で入れたい mod を選ぶ。
+In the desktop app, where `/plugin` does not run: click + next to the prompt box, then Plugins, Add marketplace with `sinozu/claude-code-mods`, then Add plugin and pick the mod.
 
 ## Development
 

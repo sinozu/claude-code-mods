@@ -277,7 +277,7 @@ export const register: Register = on => {
           </Box>
         </Box>
         <Box paddingX={1} marginBottom={1}>
-          <Text dimColor>review-requested:@me · open · not yet approved · fetched {sinceOf(now, at)}</Text>
+          <Text dimColor>review-requested:@me · open · not yet approved · auto-refresh every {REFRESH_MS / 60_000}m, last {sinceOf(now, at)}</Text>
         </Box>
         {error !== null && (
           <Box paddingX={1}>
