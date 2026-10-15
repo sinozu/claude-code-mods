@@ -1,0 +1,6 @@
+{
+  "name": "session-prs",
+  "version": "0.1.0",
+  "description": "Lists the PRs created in this session with their CI status above the prompt; a button hides or shows the list.",
+  "types": "./types/index.d.ts"
+}
