@@ -377,6 +377,8 @@ export const register: Register = on => {
           <Text color="merged">{byState.merged} merged</Text>
           <Text dimColor>·</Text>
           <Text color={byState.closed > 0 ? 'error' : 'subtle'}>{byState.closed} closed</Text>
+          <Text dimColor>·</Text>
+          <Text dimColor>auto-refresh every {REFRESH_MS / 1000}s, last {ageOf(now, Math.max(0, ...list.map(pr => pr.updatedAt)))}</Text>
         </Box>
         {list.length > 0 && (
           <Box flexDirection="column" paddingX={1} marginBottom={1}>
