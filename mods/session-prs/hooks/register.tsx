@@ -275,8 +275,11 @@ export const register: Register = on => {
     const total = totalOf(list)
     const worst = list.find(pr => pr.checks.fail > 0) ?? list.find(pr => pr.checks.pending > 0) ?? list[0]
     const tone = worst ? toneOf(worst) : { glyph: '·', color: 'subtle' as Color }
+    const below = await next(e)
+    const rest = below.type === 'engine' ? null : below
 
     return (
+      <Box flexDirection="column">
       <Box gap={1}>
         <Text color={tone.color} bold>▌</Text>
         <Text bold>PRs</Text>
@@ -288,6 +291,8 @@ export const register: Register = on => {
         <Text dimColor>│</Text>
         <Button key="toggle" hotkey="p" label={open ? 'Panel ●' : 'Panel ○'} onPress={() => (open ? closePane($) : openPane($))} />
         {e.viewport?.isFullscreen === false && <Text dimColor>/tui fullscreen enables clicks, or /prs</Text>}
+      </Box>
+      {rest}
       </Box>
     )
   })
