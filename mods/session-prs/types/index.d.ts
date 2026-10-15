@@ -1,4 +1,8 @@
-export type Checks = { pass: number; fail: number; pending: number; skipped: number }
+export type Bucket = 'pass' | 'fail' | 'pending' | 'skipped'
+
+export type Checks = Record<Bucket, number>
+
+export type CheckRun = { name: string; bucket: Bucket }
 
 export type Pr = {
   url: string
@@ -6,14 +10,20 @@ export type Pr = {
   title: string
   state: 'OPEN' | 'MERGED' | 'CLOSED' | 'UNKNOWN'
   isDraft: boolean
+  headRefName: string
+  baseRefName: string
+  additions: number
+  deletions: number
+  reviewDecision: string
+  mergeStateStatus: string
   checks: Checks
-  failed: string[]
+  runs: CheckRun[]
   updatedAt: number
   error: string | null
 }
 
 declare module 'claude-code' {
   interface PluginState {
-    'session-prs': { prs: Pr[]; isHidden: boolean }
+    'session-prs': { prs: Pr[]; isOpen: boolean }
   }
 }
