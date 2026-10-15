@@ -13,10 +13,11 @@ Claude Code の mod（hooks module plugin）置き場。
 - CI 状況は `gh pr view --json` で 60 秒ごとに更新。サイドバーの `[ Refresh ]` で即時更新
 - `/prs` でもサイドバーを開閉できる
 - 一覧と開閉状態はセッション ID をキーに保存するので、`/tui` での再起動後も残る
+- open な PR のカードには `[ Squash & merge ]` ボタンがある。押すと「Squash and merge #N?」と確認を出し、`Yes` で `gh pr merge <url> --squash` を実行する。draft なら先に `gh pr ready` を打つ（確認文に「marks it ready first」と出る）。成功すると toast を出して一覧を再取得、失敗すると gh のエラー先頭行をカードに出してボタンを戻す
 
 注意:
 
-- 通常表示（`/tui default`）ではターミナルがマウスを Claude Code に渡さないため、ボタンはクリックできない。`/tui fullscreen` にするか、`/prs` を使う。帯にフォーカス（ctrl+x tab）したときは `p`、サイドバーでは `r` が更新、`q` が閉じる
+- 通常表示（`/tui default`）ではターミナルがマウスを Claude Code に渡さないため、ボタンはクリックできない。`/tui fullscreen` にするか、`/prs` を使う。帯にフォーカス（ctrl+x tab）したときは `p`、サイドバーでは `r` が更新、`q` が閉じる、`m` が先頭の open な PR の merge ボタン、確認中は `y` / `n`
 - `gh` が認証済みであること
 
 ### review-requests
