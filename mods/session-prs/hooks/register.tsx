@@ -7,6 +7,9 @@ const PANE = 'session-prs'
 const REFRESH_MS = 60_000
 const PR_URL = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g
 const CREATES_PR = /\bgh\s+pr\s+create\b/
+const SUBMITS_STACK = /\bgh\s+stack\s+submit\b/
+// `gh stack submit` names every PR of the stack; only the "Created PR" lines are new ones.
+const STACK_CREATED = /\bCreated PR #\d+ \((https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+)\)/g
 const FIELDS = 'number,title,state,isDraft,headRefName,baseRefName,additions,deletions,reviewDecision,mergeStateStatus,statusCheckRollup'
 
 const prs = atom({ plugin: 'session-prs', key: 'prs' } as const, [])
@@ -118,6 +121,13 @@ const refreshAll = async ($: EngineInterface) => {
   const fresh = await Promise.all(list.map(pr => fetchPr($, pr)))
   await update($, prs, current => current.map(pr => fresh.find(one => one.url === pr.url) ?? pr))
   await persist($)
+}
+
+const createdIn = (command: string, text: string): string[] => {
+  const urls = new Set<string>()
+  if (CREATES_PR.test(command)) for (const url of text.match(PR_URL) ?? []) urls.add(url)
+  if (SUBMITS_STACK.test(command)) for (const [, url] of text.matchAll(STACK_CREATED)) if (url !== undefined) urls.add(url)
+  return [...urls]
 }
 
 const addPrs = async ($: EngineInterface, urls: string[]) => {
@@ -295,8 +305,8 @@ export const register: Register = on => {
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     const ran = await next(e)
-    if (!CREATES_PR.test(e.command) || ran.deny !== undefined) return ran
-    const urls = [...new Set(ran.text?.match(PR_URL) ?? [])]
+    if (ran.deny !== undefined) return ran
+    const urls = createdIn(e.command, ran.text ?? '')
     if (urls.length > 0) void addPrs($, urls)
 
     return ran
@@ -387,7 +397,7 @@ export const register: Register = on => {
         )}
         {list.length === 0 && (
           <Box paddingX={1} marginTop={1}>
-            <Text dimColor>No PR yet. The next `gh pr create` in this session shows up here.</Text>
+            <Text dimColor>No PR yet. The next `gh pr create` or `gh stack submit` in this session shows up here.</Text>
           </Box>
         )}
         {list.map(pr => {

@@ -1,6 +1,6 @@
 {
   "name": "session-prs",
-  "version": "0.2.0",
-  "description": "Lists the PRs created in this session with their CI status above the prompt; a button hides or shows the list, and each open PR has a squash-merge button that asks before it runs gh.",
+  "version": "0.3.0",
+  "description": "Lists the PRs created in this session (gh pr create, gh stack submit) with their CI status above the prompt; a button hides or shows the list, and each open PR has a squash-merge button that asks before it runs gh.",
   "types": "./types/index.d.ts"
 }
