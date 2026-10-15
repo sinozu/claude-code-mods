@@ -19,26 +19,41 @@ Claude Code の mod（hooks module plugin）置き場。
 - 通常表示（`/tui default`）ではターミナルがマウスを Claude Code に渡さないため、ボタンはクリックできない。`/tui fullscreen` にするか、`/prs` を使う。帯にフォーカス（ctrl+x tab）したときは `p`、サイドバーでは `r` が更新、`q` が閉じる
 - `gh` が認証済みであること
 
+### review-requests
+
+自分がレビュアーに指定されている open な PR の一覧と CI 状況を、帯とサイドバーに表示する。
+
+- `gh search prs --review-requested=@me --state=open` で最大 30 件取り、各 PR の CI・差分量・レビュー状態を `gh pr view` で補う
+- 自分が approve 済み、または PR 全体が approve 済みのものは出さない
+- 帯は 1 行。`▌ Reviews [n] │ ✗ k with failing CI │ [ Panel ○ ]`。失敗 CI が無ければ `CI green on all`
+- サイドバーは PR ごとのカード。`repo #番号`、DRAFT チップ、`+追加 −削除`、タイトル、`@作者`、レビュー状態、更新からの経過、チェック内訳と失敗したチェック名、リンク。更新が新しい順
+- 起動時と 5 分ごとに自動更新。`[ Refresh ]` で即時更新。`/reviews` でサイドバーを開閉
+- 帯にフォーカスしたときは `v` で開閉、サイドバーでは `r` が更新、`q` が閉じる
+
+session-prs と同時に入れると、帯は 2 段になる（各 mod が自分の行を描き、下の mod の行を重ねる）。
+
 ## Install
 
 ターミナルのセッションのプロンプトで:
 
 ```
 /plugin install session-prs --marketplace sinozu/claude-code-mods
+/plugin install review-requests --marketplace sinozu/claude-code-mods
 ```
 
 シェルから:
 
 ```
 claude plugin install session-prs --marketplace sinozu/claude-code-mods
+claude plugin install review-requests --marketplace sinozu/claude-code-mods
 ```
 
-デスクトップアプリでは、プロンプト横の + から Plugins → Add marketplace に `sinozu/claude-code-mods` を入れ、Add plugin で `session-prs` を選ぶ。
+デスクトップアプリでは、プロンプト横の + から Plugins → Add marketplace に `sinozu/claude-code-mods` を入れ、Add plugin で入れたい mod を選ぶ。
 
 ## Development
 
 ```
-claude --plugin-dir ./mods/session-prs
-claude plugin validate ./mods/session-prs
-claude plugin test ./mods/session-prs
+claude --plugin-dir ./mods/session-prs --plugin-dir ./mods/review-requests
+claude plugin validate ./mods/<mod>
+claude plugin test ./mods/<mod>
 ```

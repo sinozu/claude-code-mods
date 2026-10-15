@@ -47,6 +47,7 @@ const engine = (on: On) => {
   on('session.id', () => ({ value: 'test-session' }))
   on('command.register', (_, e) => ({ value: { command: e.name } }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('ui.render', { component: 'AbovePrompt' }, () => ({ type: 'engine', ref: 0 }))
 }
 
 const ok = (stdout: string) => ({ value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
@@ -114,6 +115,7 @@ test('restores the list from the store after a relaunch', async ($, on) => {
   on('session.id', () => ({ value: 'test-session' }))
   on('command.register', (_, e) => ({ value: { command: e.name } }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('ui.render', { component: 'AbovePrompt' }, () => ({ type: 'engine', ref: 0 }))
   mock.store(on, {
     'prs:test-session': [
       { url: PR, number: 12, title: 'restored', state: 'OPEN', isDraft: false, headRefName: '', baseRefName: '', additions: 0, deletions: 0, reviewDecision: '', mergeStateStatus: '', checks: { pass: 0, fail: 0, pending: 0, skipped: 0 }, runs: [], updatedAt: 0, error: null },

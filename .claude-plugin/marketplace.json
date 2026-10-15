@@ -2,6 +2,7 @@
   "name": "claude-code-mods",
   "owner": { "name": "sinozu" },
   "plugins": [
-    { "name": "session-prs", "source": "./mods/session-prs" }
+    { "name": "session-prs", "source": "./mods/session-prs" },
+    { "name": "review-requests", "source": "./mods/review-requests" }
   ]
 }

@@ -1,0 +1,6 @@
+{
+  "name": "review-requests",
+  "version": "0.1.0",
+  "description": "Lists the open PRs where you are a requested reviewer, with CI status, in a pane toggled from the band above the prompt.",
+  "types": "./types/index.d.ts"
+}
