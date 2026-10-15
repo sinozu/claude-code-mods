@@ -7,6 +7,9 @@ const PANE = 'session-prs'
 const REFRESH_MS = 60_000
 const PR_URL = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g
 const CREATES_PR = /\bgh\s+pr\s+create\b/
+const SUBMITS_STACK = /\bgh\s+stack\s+submit\b/
+// `gh stack submit` names every PR of the stack; only the "Created PR" lines are new ones.
+const STACK_CREATED = /\bCreated PR #\d+ \((https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+)\)/g
 const FIELDS = 'number,title,state,isDraft,headRefName,baseRefName,additions,deletions,reviewDecision,mergeStateStatus,statusCheckRollup'
 
 const prs = atom({ plugin: 'session-prs', key: 'prs' } as const, [])
@@ -118,6 +121,13 @@ const refreshAll = async ($: EngineInterface) => {
   const fresh = await Promise.all(list.map(pr => fetchPr($, pr)))
   await update($, prs, current => current.map(pr => fresh.find(one => one.url === pr.url) ?? pr))
   await persist($)
+}
+
+const createdIn = (command: string, text: string): string[] => {
+  const urls = new Set<string>()
+  if (CREATES_PR.test(command)) for (const url of text.match(PR_URL) ?? []) urls.add(url)
+  if (SUBMITS_STACK.test(command)) for (const [, url] of text.matchAll(STACK_CREATED)) if (url !== undefined) urls.add(url)
+  return [...urls]
 }
 
 const addPrs = async ($: EngineInterface, urls: string[]) => {
@@ -295,8 +305,8 @@ export const register: Register = on => {
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     const ran = await next(e)
-    if (!CREATES_PR.test(e.command) || ran.deny !== undefined) return ran
-    const urls = [...new Set(ran.text?.match(PR_URL) ?? [])]
+    if (ran.deny !== undefined) return ran
+    const urls = createdIn(e.command, ran.text ?? '')
     if (urls.length > 0) void addPrs($, urls)
 
     return ran
@@ -367,6 +377,8 @@ export const register: Register = on => {
           <Text color="merged">{byState.merged} merged</Text>
           <Text dimColor>·</Text>
           <Text color={byState.closed > 0 ? 'error' : 'subtle'}>{byState.closed} closed</Text>
+          <Text dimColor>·</Text>
+          <Text dimColor>auto-refresh every {REFRESH_MS / 1000}s, last {ageOf(now, Math.max(0, ...list.map(pr => pr.updatedAt)))}</Text>
         </Box>
         {list.length > 0 && (
           <Box flexDirection="column" paddingX={1} marginBottom={1}>
@@ -387,7 +399,7 @@ export const register: Register = on => {
         )}
         {list.length === 0 && (
           <Box paddingX={1} marginTop={1}>
-            <Text dimColor>No PR yet. The next `gh pr create` in this session shows up here.</Text>
+            <Text dimColor>No PR yet. The next `gh pr create` or `gh stack submit` in this session shows up here.</Text>
           </Box>
         )}
         {list.map(pr => {
@@ -395,7 +407,8 @@ export const register: Register = on => {
           const review = reviewOf(pr.reviewDecision)
           const mergeable = mergeOf(pr.mergeStateStatus)
           const mine = asked?.url === pr.url ? asked : null
-          const shown = pr.runs.slice(0, 8)
+          const failed = pr.runs.filter(run => run.bucket === 'fail')
+          const shown = failed.slice(0, 8)
           return (
             <Box key={pr.url} flexDirection="column" borderStyle="round" borderColor={tone.color} paddingX={1} width={width}>
               <Box justifyContent="space-between">
@@ -419,7 +432,6 @@ export const register: Register = on => {
                 </Box>
               )}
               <Text dimColor>{'─'.repeat(inner)}</Text>
-              {shown.length === 0 && pr.error === null && <Text dimColor>no checks on this PR</Text>}
               {shown.length > 0 && (
                 <Box flexWrap="wrap" columnGap={2}>
                   {shown.map(run => (
@@ -427,7 +439,7 @@ export const register: Register = on => {
                       {BUCKET[run.bucket].glyph} {run.name}
                     </Text>
                   ))}
-                  {pr.runs.length > shown.length && <Text dimColor>+{pr.runs.length - shown.length} more</Text>}
+                  {failed.length > shown.length && <Text dimColor>+{failed.length - shown.length} more</Text>}
                 </Box>
               )}
               {pr.error !== null && <Text color="warning" wrap="truncate">gh: {pr.error}</Text>}
