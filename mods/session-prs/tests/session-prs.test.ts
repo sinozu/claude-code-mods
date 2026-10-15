@@ -213,3 +213,36 @@ test('a failed merge shows gh\'s message and offers the button again', async ($,
   expect(await pane.find({ text: /merge failed: X Pull request #12 is not mergeable/ })).toBeDefined()
   expect(await pane.find({ key: `merge:${PR}` })).toBeDefined()
 })
+
+test('gh stack submit registers the PRs it created, not the ones already in the stack', async ($, on) => {
+  engine(on)
+  const fetched: string[] = []
+  const stackOut = [
+    'Checking stack state...',
+    'Pushing to origin...',
+    '⚠ Disabled auto-merge for PR #10 (https://github.com/example/repo/pull/10) (incompatible with stacked PRs)',
+    'PR #10 (https://github.com/example/repo/pull/10) for part-1 is up to date',
+    '✓ Created PR #12 (https://github.com/example/repo/pull/12) for part-2',
+    '✓ Created PR #13 (https://github.com/example/repo/pull/13) for part-3',
+    '✓ Stack created on GitHub with 3 PRs (stack #14)',
+    '',
+  ].join('\n')
+  on('tool.call', { tool: 'Bash' }, () => ({ result: { stdout: stackOut, stderr: '' }, text: stackOut }))
+  on('process.run', (_, e) => {
+    const url = e.argv[3] ?? ''
+    fetched.push(url)
+    return ok(view({ number: Number(url.split('/').pop()) }))
+  })
+
+  await $.tool.call({ tool: 'Bash', command: 'gh stack submit --auto' })
+  await $.tool.call({ tool: 'Bash', command: 'git status' })
+  expect(new Set(fetched)).toEqual(new Set(['https://github.com/example/repo/pull/12', 'https://github.com/example/repo/pull/13']))
+
+  const band = await $.ui.mount({ plugin: 'session-prs', surface: 'terminal', component: 'AbovePrompt', props: bandProps })
+  expect(await band.find({ text: /PRs 2/ })).toBeDefined()
+  const pane = await $.ui.mount({ plugin: 'session-prs', surface: 'terminal', component: 'Pane', props: paneProps, requestId: 'session-prs' })
+  expect(await pane.find({ text: /#12/ })).toBeDefined()
+  expect(await pane.find({ text: /#13/ })).toBeDefined()
+  expect(await pane.find({ text: /#10\b/ })).toBeUndefined()
+  expect(await pane.find({ text: /#14/ })).toBeUndefined()
+})
