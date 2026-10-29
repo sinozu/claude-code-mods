@@ -248,3 +248,23 @@ test('gh stack submit registers the PRs it created, not the ones already in the 
   expect(await pane.find({ text: /#10\b/ })).toBeUndefined()
   expect(await pane.find({ text: /#14/ })).toBeUndefined()
 })
+
+test('the pane lists PRs by creation time, newest first', async ($, on) => {
+  engine(on)
+  const created: Record<string, string> = { '12': '2026-10-29T01:00:00Z', '13': '2026-10-29T03:00:00Z' }
+  const stackOut = [
+    '✓ Created PR #12 (https://github.com/example/repo/pull/12) for part-1',
+    '✓ Created PR #13 (https://github.com/example/repo/pull/13) for part-2',
+    '',
+  ].join('\n')
+  on('tool.call', { tool: 'Bash' }, () => ({ result: { stdout: stackOut, stderr: '' }, text: stackOut }))
+  on('process.run', (_, e) => {
+    const number = (e.argv[3] ?? '').split('/').pop() ?? ''
+    return ok(view({ number: Number(number), createdAt: created[number] }))
+  })
+
+  await $.tool.call({ tool: 'Bash', command: 'gh stack submit --auto' })
+  const pane = await $.ui.mount({ plugin: 'session-prs', surface: 'terminal', component: 'Pane', props: paneProps, requestId: 'session-prs' })
+  const numbers = (await pane.findAll({ type: 'Text', text: /^#1[23]$/ })).map(node => node.text)
+  expect(numbers).toEqual(['#13', '#12'])
+})

@@ -10,7 +10,7 @@ const CREATES_PR = /\bgh\s+pr\s+create\b/
 const SUBMITS_STACK = /\bgh\s+stack\s+submit\b/
 // `gh stack submit` names every PR of the stack; only the "Created PR" lines are new ones.
 const STACK_CREATED = /\bCreated PR #\d+ \((https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+)\)/g
-const FIELDS = 'number,title,state,isDraft,headRefName,baseRefName,additions,deletions,reviewDecision,mergeStateStatus,statusCheckRollup'
+const FIELDS = 'number,title,state,isDraft,headRefName,baseRefName,additions,deletions,reviewDecision,mergeStateStatus,statusCheckRollup,createdAt'
 
 const prs = atom({ plugin: 'session-prs', key: 'prs' } as const, [])
 const isOpen = atom({ plugin: 'session-prs', key: 'isOpen' } as const, false)
@@ -32,6 +32,7 @@ type View = {
   reviewDecision: string
   mergeStateStatus: string
   statusCheckRollup: Rollup[]
+  createdAt: string
 }
 
 type Color = 'success' | 'error' | 'warning' | 'subtle' | 'merged' | 'text'
@@ -73,6 +74,7 @@ const emptyPr = (url: string): Pr => ({
   mergeStateStatus: '',
   checks: zero(),
   runs: [],
+  createdAt: '',
   updatedAt: 0,
   error: null,
 })
@@ -107,6 +109,7 @@ const fetchPr = async ($: EngineInterface, pr: Pr): Promise<Pr> => {
       mergeStateStatus: view.mergeStateStatus ?? '',
       checks,
       runs,
+      createdAt: view.createdAt ?? '',
       updatedAt,
       error: null,
     }
@@ -209,6 +212,10 @@ const restore = async ($: EngineInterface) => {
   const open = await $.store.get(await storeKey($, 'open'))
   if (open === true) await update($, isOpen, () => true)
 }
+
+// Newest first. A PR not fetched yet has no createdAt; it was just created, so it goes on top.
+const byCreatedDesc = (list: Pr[]): Pr[] =>
+  [...list].sort((a, b) => (b.createdAt || '\uffff').localeCompare(a.createdAt || '\uffff'))
 
 const totalOf = (list: Pr[]): Checks =>
   list.reduce((sum, pr) => {
@@ -345,7 +352,7 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Button, Link, Text } = $.ui.resolve(e)
-    const list = await read($, prs)
+    const list = byCreatedDesc(await read($, prs))
     const asked = await read($, merge)
     const now = await $.clock.now()
     const total = totalOf(list)

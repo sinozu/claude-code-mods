@@ -18,6 +18,7 @@ export type Pr = {
   mergeStateStatus: string
   checks: Checks
   runs: CheckRun[]
+  createdAt: string
   updatedAt: number
   error: string | null
 }
