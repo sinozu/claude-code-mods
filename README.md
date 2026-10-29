@@ -9,7 +9,7 @@ Mods for Claude Code: hooks-module plugins that add live panels and controls to 
 Shows the PRs created in the current session, with their CI status, in a band above the prompt and in a side panel.
 
 - The band is a single row: `▌ PRs [n] │ ✓ passed ✗ failed ◌ running │ [ Panel ○ ]`. The button toggles the panel on and off.
-- The panel draws one card per PR: a state chip (DRAFT while the PR is a draft, otherwise OPEN / MERGED / CLOSED), `+added −deleted`, branch → base, the names of the failed checks (passed, running and skipped checks are not listed), review decision, merge state, a link to the PR, and the time since the last fetch. A proportional bar at the top sums up all checks.
+- The panel draws one card per PR, newest first by creation time: a state chip (DRAFT while the PR is a draft, otherwise OPEN / MERGED / CLOSED), `+added −deleted`, branch → base, the names of the failed checks (passed, running and skipped checks are not listed), review decision, merge state, a link to the PR, and the time since the last fetch. A proportional bar at the top sums up all checks.
 - A PR is picked up from the output of any `gh pr create` the session runs through the Bash tool, including those run by subagents. From `gh stack submit` only the `Created PR #N (URL)` lines are taken: PRs already in the stack (`is up to date`) and the stack's own number are not added.
 - CI status comes from `gh pr view --json` and refreshes every 60 seconds; `[ Refresh ]` fetches at once.
 - `/prs` also toggles the panel.
