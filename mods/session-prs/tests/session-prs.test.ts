@@ -268,3 +268,62 @@ test('the pane lists PRs by creation time, newest first', async ($, on) => {
   const numbers = (await pane.findAll({ type: 'Text', text: /^#1[23]$/ })).map(node => node.text)
   expect(numbers).toEqual(['#13', '#12'])
 })
+
+test('gh api POST to /pulls registers the created PR, not the PRs its body quotes', async ($, on) => {
+  engine(on)
+  const fetched: string[] = []
+  const response = JSON.stringify({
+    url: 'https://api.github.com/repos/example/repo/pulls/12',
+    html_url: PR,
+    diff_url: `${PR}.diff`,
+    number: 12,
+    body: 'follow-up of https://github.com/example/repo/pull/10',
+  }, null, 2)
+  let out = response
+  on('tool.call', { tool: 'Bash' }, () => ({ result: { stdout: out, stderr: '' }, text: out }))
+  on('process.run', (_, e) => {
+    fetched.push(e.argv[3] ?? '')
+    return ok(view())
+  })
+
+  await $.tool.call({ tool: 'Bash', command: 'gh api repos/example/repo/pulls?state=open' })
+  await $.tool.call({ tool: 'Bash', command: 'gh api -X GET repos/example/repo/pulls -f state=open' })
+  await $.tool.call({ tool: 'Bash', command: 'gh api -X POST repos/example/repo/pulls/12/comments -f body=x' })
+  expect(fetched).toEqual([])
+
+  await $.tool.call({ tool: 'Bash', command: 'gh api -X POST repos/example/repo/pulls -f title=x -f head=b -f base=main --raw-field body=y' })
+  const band = await $.ui.mount({ plugin: 'session-prs', surface: 'terminal', component: 'AbovePrompt', props: bandProps })
+  for (let i = 0; i < 20 && (await band.find({ text: /PRs 1/ })) === undefined; i += 1) await $.tool.call({ tool: 'Bash', command: 'true' })
+  expect(await band.find({ text: /PRs 1/ })).toBeDefined()
+  expect(fetched.every(url => url === PR)).toBe(true)
+
+  out = 'https://github.com/example/repo/pull/13\n'
+  await $.tool.call({ tool: 'Bash', command: 'gh api repos/example/repo/pulls --input body.json --jq .html_url' })
+  for (let i = 0; i < 20 && (await band.find({ text: /PRs 2/ })) === undefined; i += 1) await $.tool.call({ tool: 'Bash', command: 'true' })
+  expect(await band.find({ text: /PRs 2/ })).toBeDefined()
+})
+
+test('/prs with URLs or numbers adds those PRs and leaves the panel as it was', async ($, on) => {
+  engine(on)
+  const opened: string[] = []
+  on('ui.open', (_, e) => {
+    opened.push(e.id)
+    return { value: { isPlaced: true } }
+  })
+  on('process.run', (_, e) => {
+    if (e.argv[5] === 'url') {
+      if (e.argv[3] === '13') return ok('https://github.com/example/repo/pull/13\n')
+      return { value: { exitCode: 1, stdout: '', stderr: 'no pull requests found\n', isStdoutTruncated: false, isStderrTruncated: false } }
+    }
+    return ok(view({ number: Number((e.argv[3] ?? '').split('/').pop()) }))
+  })
+  const run = (args: string) => $.command.run({ command: 'prs', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 120 } })
+
+  expect((await run(`${PR} #13 99 nope`)).text).toBe('Added 2 PR(s) to the panel. Not a PR: 99, nope.')
+  expect((await run(PR)).text).toBe('Added 0 PR(s) to the panel.')
+  expect(opened).toEqual([])
+
+  const pane = await $.ui.mount({ plugin: 'session-prs', surface: 'terminal', component: 'Pane', props: paneProps, requestId: 'session-prs' })
+  expect(await pane.find({ text: /#12/ })).toBeDefined()
+  expect(await pane.find({ text: /#13/ })).toBeDefined()
+})

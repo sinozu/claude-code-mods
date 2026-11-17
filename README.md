@@ -12,7 +12,8 @@ Shows the PRs created in the current session, with their CI status, in a band ab
 - The panel draws one card per PR, newest first by creation time: a state chip (DRAFT while the PR is a draft, otherwise OPEN / MERGED / CLOSED), `+added −deleted`, branch → base, the names of the failed checks (passed, running and skipped checks are not listed), review decision, merge state, a link to the PR, and the time since the last fetch. A proportional bar at the top sums up all checks.
 - A PR is picked up from the output of any `gh pr create` the session runs through the Bash tool, including those run by subagents. From `gh stack submit` only the `Created PR #N (URL)` lines are taken: PRs already in the stack (`is up to date`) and the stack's own number are not added.
 - CI status comes from `gh pr view --json` and refreshes every 60 seconds; `[ Refresh ]` fetches at once.
-- `/prs` also toggles the panel.
+- A PR created through the REST API is picked up too: a `gh api` call that POSTs to `repos/OWNER/REPO/pulls` (`-X POST`, or `-f` / `-F` / `--input` fields, which make gh POST). The URL is the response's `html_url`, or the line `--jq .html_url` prints. A call that prints neither, such as `--jq .number`, is not picked up.
+- `/prs` also toggles the panel. `/prs <url or number>...` adds PRs the session did not create with those commands; a number is resolved with `gh pr view` in the session's repository.
 - The list and the panel state are stored under the session id, so they survive a `/tui` relaunch.
 - Each open PR's card has a `[ Squash & merge ]` button. It asks "Squash and merge #N?" first; `Yes` runs `gh pr merge <url> --squash`, after `gh pr ready` when the PR is still a draft (the question then says "marks it ready first"). Success toasts and refreshes the list; failure shows the first line of gh's error on the card and brings the button back.
 

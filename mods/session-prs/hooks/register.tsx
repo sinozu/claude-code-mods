@@ -9,6 +9,14 @@ const PR_URL = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g
 const CREATES_PR = /\bgh\s+pr\s+create\b/
 const SUBMITS_STACK = /\bgh\s+stack\s+submit\b/
 // `gh stack submit` names every PR of the stack; only the "Created PR" lines are new ones.
+// `gh api ... repos/OWNER/REPO/pulls` with a POST: the REST call that creates a PR.
+const POSTS_PULLS = /\bgh\s+api\b[^|;&]*\brepos\/[\w.-]+\/[\w.-]+\/pulls(?![\w/?.-])/
+const POST_FLAG = /(?:^|\s)(?:-X\s*POST|--method[\s=]POST|-f|-F|--field|--raw-field|--input)\b/
+const GET_FLAG = /(?:^|\s)(?:-X\s*GET|--method[\s=]GET)\b/
+// The created PR's own link in the response; its body may quote other PRs.
+const API_HTML_URL = /"html_url":\s*"(https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+)"/
+const BARE_URL_LINE = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+$/
+const PR_NUMBER = /^#?\d+$/
 const STACK_CREATED = /\bCreated PR #\d+ \((https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+)\)/g
 const FIELDS = 'number,title,state,isDraft,headRefName,baseRefName,additions,deletions,reviewDecision,mergeStateStatus,statusCheckRollup,createdAt'
 
@@ -130,7 +138,37 @@ const createdIn = (command: string, text: string): string[] => {
   const urls = new Set<string>()
   if (CREATES_PR.test(command)) for (const url of text.match(PR_URL) ?? []) urls.add(url)
   if (SUBMITS_STACK.test(command)) for (const [, url] of text.matchAll(STACK_CREATED)) if (url !== undefined) urls.add(url)
+  if (POSTS_PULLS.test(command) && POST_FLAG.test(command) && !GET_FLAG.test(command)) {
+    const own = text.match(API_HTML_URL)?.[1]
+    if (own !== undefined) urls.add(own)
+    else for (const line of text.split('\n')) if (BARE_URL_LINE.test(line.trim())) urls.add(line.trim())
+  }
   return [...urls]
+}
+
+// `/prs <url or number>...`: a number is looked up in the session's repository.
+const resolveArgs = async ($: EngineInterface, args: string): Promise<{ urls: string[]; unknown: string[] }> => {
+  const urls: string[] = []
+  const unknown: string[] = []
+  for (const token of args.split(/[\s,]+/).filter(Boolean)) {
+    if (BARE_URL_LINE.test(token)) {
+      urls.push(token)
+      continue
+    }
+    if (!PR_NUMBER.test(token)) {
+      unknown.push(token)
+      continue
+    }
+    try {
+      const ran = await $.process.run(['gh', 'pr', 'view', token.replace('#', ''), '--json', 'url', '--jq', '.url'], { timeoutMs: 20_000 })
+      const url = ran.stdout.trim()
+      if (ran.exitCode === 0 && BARE_URL_LINE.test(url)) urls.push(url)
+      else unknown.push(token)
+    } catch {
+      unknown.push(token)
+    }
+  }
+  return { urls, unknown }
 }
 
 const addPrs = async ($: EngineInterface, urls: string[]) => {
@@ -279,7 +317,7 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'prs',
-      description: 'Open or close the panel of PRs created in this session',
+      description: 'Open or close the panel of PRs created in this session; `/prs <url or number>...` adds PRs to it',
     })
     $.clock.every(REFRESH_MS, () => void refreshAll($))
     await restore($)
@@ -288,7 +326,16 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('command.run', { command: 'prs' }, async $ => {
+  on('command.run', { command: 'prs' }, async ($, e) => {
+    const args = typeof e.args === 'string' ? e.args.trim() : ''
+    if (args !== '') {
+      const { urls, unknown } = await resolveArgs($, args)
+      const before = (await read($, prs)).length
+      await addPrs($, urls)
+      const added = (await read($, prs)).length - before
+      const notFound = unknown.length > 0 ? ` Not a PR: ${unknown.join(', ')}.` : ''
+      return { text: `Added ${added} PR(s) to the panel.${notFound}` }
+    }
     const open = await read($, isOpen)
     if (open) {
       await closePane($)
@@ -406,7 +453,7 @@ export const register: Register = on => {
         )}
         {list.length === 0 && (
           <Box paddingX={1} marginTop={1}>
-            <Text dimColor>No PR yet. The next `gh pr create` or `gh stack submit` in this session shows up here.</Text>
+            <Text dimColor>No PR yet. The next `gh pr create`, `gh stack submit` or `gh api` POST to `/pulls` in this session shows up here; `/prs URL` adds one.</Text>
           </Box>
         )}
         {list.map(pr => {
